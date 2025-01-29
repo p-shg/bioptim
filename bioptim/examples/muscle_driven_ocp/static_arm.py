@@ -23,6 +23,7 @@ from bioptim import (
     PhaseDynamics,
     ControlType,
 )
+print("hello")
 
 
 def prepare_ocp(
