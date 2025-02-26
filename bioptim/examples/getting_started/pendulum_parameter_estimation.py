@@ -37,7 +37,7 @@ from example_parameter_scaling import generate_dat_to_track
 
 estimate_mass = True
 mass_scale = np.array([1.0])
-estimate_gravity = True
+estimate_gravity = False
 gravity_scale = np.array([1.0, 1.0, 1.0])
 
 
@@ -291,8 +291,8 @@ def main():
     """
     Solve and print the optimized value for the gravity and animate the solution
     """
-    final_time = 5
-    n_shooting = 1000
+    final_time = 1
+    n_shooting = 100
 
     ocp_to_track = generate_dat_to_track(
         biorbd_model_path="models/pendulum_wrong_gravity.bioMod", final_time=final_time, n_shooting=n_shooting
