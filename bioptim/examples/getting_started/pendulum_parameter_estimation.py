@@ -36,7 +36,7 @@ from plotly.subplots import make_subplots
 from example_parameter_scaling import generate_dat_to_track
 
 estimate_mass = True
-mass_scale = np.array([1.0])
+mass_scale = np.array([0.01])
 estimate_gravity = False
 gravity_scale = np.array([1.0, 1.0, 1.0])
 
@@ -202,6 +202,14 @@ def prepare_ocp(
 
         parameter_init["mass"] = init_m
 
+        parameter_objectives.add(
+            my_target_function,
+            weight=1,
+            # quadratic=True,
+            custom_type=ObjectiveFcn.Parameter,
+            key="mass",
+        )
+
     if estimate_gravity:
         min_g = np.array([0, -5, -50])
         max_g = np.array([0, 5, -5])
@@ -236,11 +244,11 @@ def prepare_ocp(
 
     # Add objective functions
     objective_functions = ObjectiveList()
-    objective_functions.add(
-        ObjectiveFcn.Lagrange.TRACK_CONTROL, key="tau", target=np.array([tau_ref[0]]), weight=1, index=0
-    )
-    objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, key="q", target=q_ref[:, :-1], weight=1)
-    objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, key="qdot", target=qdot_ref[:, :-1], weight=1)
+    # objective_functions.add(
+    #     ObjectiveFcn.Lagrange.TRACK_CONTROL, key="tau", target=np.array([tau_ref[0]]), weight=1, index=0
+    # )
+    # objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, key="q", target=q_ref[:, :-1], weight=1)
+    # objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, key="qdot", target=qdot_ref[:, :-1], weight=1)
 
     # Dynamics
     dynamics = Dynamics(
