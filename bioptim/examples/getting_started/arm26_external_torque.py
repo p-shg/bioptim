@@ -9,8 +9,6 @@ from bioptim import (
     Solver,
     PhaseDynamics,
     ExternalForceSetTimeSeries,
-    Objective,
-    ObjectiveFcn,
 )
 
 import numpy as np
@@ -26,19 +24,20 @@ def prepare_ocp(
     expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
 
-    external_torque = np.zeros((6, n_shooting))
-    # external_torque[3:, : int(n_shooting // 3)] = 30
-    external_torque[3, :] = 30
-    # external_torque[4, : int(n_shooting // 2)] = 0.7
-
     external_force_set = ExternalForceSetTimeSeries(nb_frames=n_shooting)
+
+    external_torque_elbow = np.zeros((6, n_shooting))
+    external_torque_elbow[3:, :] = -10
+
     external_force_set.add_in_segment_frame(
-        "r_humerus",
-        external_torque,
+        "r_ulna_radius_hand",
+        external_torque_elbow,
         point_of_application_in_local=np.array([[0.0, 0.0, 0.0] for _ in range(n_shooting)]).T,
     )
 
     numerical_time_series = {"external_forces": external_force_set.to_numerical_time_series()}
+
+    bio_model = BiorbdModel(biorbd_model_path, external_force_set=external_force_set)
 
     # Dynamics
     dynamics = Dynamics(
@@ -46,10 +45,8 @@ def prepare_ocp(
         expand_dynamics=expand_dynamics,
         phase_dynamics=phase_dynamics,
         numerical_data_timeseries=numerical_time_series,
-        state_continuity_weight=10,
+        state_continuity_weight=1,
     )
-
-    bio_model = BiorbdModel(biorbd_model_path, external_force_set=external_force_set)
 
     # Path constraint
     x_bounds = BoundsList()
@@ -76,9 +73,9 @@ def prepare_ocp(
 
 def main():
     ocp = prepare_ocp(
-        biorbd_model_path="models/arm26.bioMod",
-        final_time=5,
-        n_shooting=100,
+        biorbd_model_path="../muscle_driven_ocp/models/arm26.bioMod",
+        final_time=2,
+        n_shooting=50,
     )
 
     # --- Solve the program --- #

@@ -25,7 +25,7 @@ def prepare_ocp(
 ) -> OptimalControlProgram:
 
     external_torque = np.zeros((6, n_shooting))
-    external_torque[4, : int(n_shooting // 2)] = -20
+    external_torque[4, :] = -20
 
     external_force_set = ExternalForceSetTimeSeries(nb_frames=n_shooting)
     external_force_set.add_in_segment_frame(
