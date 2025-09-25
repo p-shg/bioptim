@@ -1210,7 +1210,7 @@ class ConfigureVariables:
 
         time_span_sym = vertcat(nlp.time_cx, nlp.dt)
 
-        nlp.q_v_function = Function(
+        q_v_function = Function(
             "qv_function",
             [
                 time_span_sym,
@@ -1223,7 +1223,11 @@ class ConfigureVariables:
             [
                 nlp.model.compute_q_v()(
                     nlp.states["q_u"].cx,
-                    DM.zeros(nlp.model.nb_dependent_joints, 1),
+                    (
+                        nlp.algebraic_states["q_v"].cx
+                        if "q_v" in nlp.algebraic_states.keys()
+                        else DM.zeros(nlp.model.nb_dependent_joints, 1)
+                    ),
                 )
             ],
             ["t_span", "x", "u", "p", "a", "d"],
@@ -1245,7 +1249,7 @@ class ConfigureVariables:
         )
 
         nlp.plot["q_v"] = CustomPlot(
-            lambda t0, phases_dt, node_idx, x, u, p, a, d: nlp.q_v_function(
+            lambda t0, phases_dt, node_idx, x, u, p, a, d: q_v_function(
                 np.concatenate([t0, t0 + phases_dt[nlp.phase_idx]]), x, u, p, a, d
             ),
             plot_type=PlotType.INTEGRATED,
@@ -1267,7 +1271,7 @@ class ConfigureVariables:
         """
 
         time_span_sym = vertcat(nlp.time_cx, nlp.dt)
-        nlp.q_v_function = Function(
+        qdot_v_function = Function(
             "qdot_v_function",
             [
                 time_span_sym,
@@ -1281,7 +1285,11 @@ class ConfigureVariables:
                 nlp.model._compute_qdot_v()(
                     nlp.states.scaled["q_u"].cx,
                     nlp.states.scaled["qdot_u"].cx,
-                    DM.zeros(nlp.model.nb_dependent_joints, 1),
+                    (
+                        nlp.algebraic_states["q_v"].cx
+                        if "q_v" in nlp.algebraic_states.keys()
+                        else DM.zeros(nlp.model.nb_dependent_joints, 1)
+                    ),
                 )
             ],
             ["t_span", "x", "u", "p", "a", "d"],
@@ -1303,7 +1311,7 @@ class ConfigureVariables:
         )
 
         nlp.plot["qdot_v"] = CustomPlot(
-            lambda t0, phases_dt, node_idx, x, u, p, a, d: nlp.q_v_function(
+            lambda t0, phases_dt, node_idx, x, u, p, a, d: qdot_v_function(
                 np.concatenate([t0, t0 + phases_dt[nlp.phase_idx]]), x, u, p, a, d
             ),
             plot_type=PlotType.INTEGRATED,
@@ -1325,7 +1333,7 @@ class ConfigureVariables:
         """
 
         time_span_sym = vertcat(nlp.time_cx, nlp.dt)
-        nlp.lagrange_multipliers_function = Function(
+        lagrange_multipliers_function = Function(
             "lagrange_multipliers_function",
             [
                 time_span_sym,
@@ -1339,7 +1347,11 @@ class ConfigureVariables:
                 nlp.model.compute_the_lagrangian_multipliers()(
                     nlp.states.scaled["q_u"].cx,
                     nlp.states.scaled["qdot_u"].cx,
-                    DM.zeros(nlp.model.nb_dependent_joints, 1),
+                    (
+                        nlp.algebraic_states["q_v"].cx
+                        if "q_v" in nlp.algebraic_states.keys()
+                        else DM.zeros(nlp.model.nb_dependent_joints, 1)
+                    ),
                     DynamicsFunctions.get(nlp.controls["tau"], nlp.controls.scaled.cx),
                 )
             ],
@@ -1366,7 +1378,7 @@ class ConfigureVariables:
         )
 
         nlp.plot["lagrange_multipliers"] = CustomPlot(
-            lambda t0, phases_dt, node_idx, x, u, p, a, d: nlp.lagrange_multipliers_function(
+            lambda t0, phases_dt, node_idx, x, u, p, a, d: lagrange_multipliers_function(
                 np.concatenate([t0, t0 + phases_dt[nlp.phase_idx]]), x, u, p, a, d
             ),
             plot_type=PlotType.INTEGRATED,
