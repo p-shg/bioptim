@@ -2,11 +2,11 @@ from enum import Enum
 from typing import Callable, Any
 
 import numpy as np
-from casadi import DM, vertcat, Function
+from casadi import DM, vertcat, Function, horzcat
 
 from .configure_new_variable import NewVariableConfiguration
 from .fatigue.fatigue_dynamics import FatigueList
-from ..misc.enums import PlotType, ContactType
+from ..misc.enums import PlotType, ContactType, ControlType
 from ..misc.fcn_enum import FcnEnum
 from ..misc.mapping import BiMapping, Mapping
 from ..models.protocols.stochastic_biomodel import StochasticBioModel
@@ -1242,14 +1242,14 @@ class ConfigureVariables:
             to_second=[i for i, c in enumerate(all_multipliers_names) if c in all_multipliers_names_in_phase],
         )
 
-        nlp.plot["q_v"] = CustomPlot(
-            lambda t0, phases_dt, node_idx, x, u, p, a, d: q_v_function(
-                np.concatenate([t0, t0 + phases_dt[nlp.phase_idx]]), x, u, p, a, d
-            ),
-            plot_type=PlotType.INTEGRATED,
-            axes_idx=axes_idx,
-            legend=all_multipliers_names,
-        )
+        # nlp.plot["q_v"] = CustomPlot(
+        #     lambda t0, phases_dt, node_idx, x, u, p, a, d: nlp.q_v_function(
+        #         np.concatenate([t0, t0 + phases_dt[nlp.phase_idx]]), x, u, p, a, d
+        #     ),
+        #     plot_type=PlotType.INTEGRATED,
+        #     axes_idx=axes_idx,
+        #     legend=all_multipliers_names,
+        # )
 
     @staticmethod
     def configure_qdotv(ocp, nlp, **extra_params) -> None:
@@ -1304,14 +1304,14 @@ class ConfigureVariables:
             to_second=[i for i, c in enumerate(all_multipliers_names) if c in all_multipliers_names_in_phase],
         )
 
-        nlp.plot["qdot_v"] = CustomPlot(
-            lambda t0, phases_dt, node_idx, x, u, p, a, d: qdot_v_function(
-                np.concatenate([t0, t0 + phases_dt[nlp.phase_idx]]), x, u, p, a, d
-            ),
-            plot_type=PlotType.INTEGRATED,
-            axes_idx=axes_idx,
-            legend=all_multipliers_names,
-        )
+        # nlp.plot["qdot_v"] = CustomPlot(
+        #     lambda t0, phases_dt, node_idx, x, u, p, a, d: nlp.q_v_function(
+        #         np.concatenate([t0, t0 + phases_dt[nlp.phase_idx]]), x, u, p, a, d
+        #     ),
+        #     plot_type=PlotType.INTEGRATED,
+        #     axes_idx=axes_idx,
+        #     legend=all_multipliers_names,
+        # )
 
     @staticmethod
     def configure_lagrange_multipliers_function(ocp, nlp: NpArrayDictOptional, **extra_params) -> None:
@@ -1325,6 +1325,9 @@ class ConfigureVariables:
         nlp: NonLinearProgram
             A reference to the phase
         """
+
+        if nlp.control_type == ControlType.LINEAR_CONTINUOUS:
+            new_control = nlp.cx.sym("new_control", nlp.controls.scaled.cx.shape[0], 2)
 
         time_span_sym = vertcat(nlp.time_cx, nlp.dt)
         lagrange_multipliers_function = Function(
@@ -1347,7 +1350,7 @@ class ConfigureVariables:
                         else DM.zeros(nlp.model.nb_dependent_joints, 1)
                     ),
                     DynamicsFunctions.get(nlp.controls["tau"], nlp.controls.scaled.cx),
-                )
+                ),
             ],
             ["t_span", "x", "u", "p", "a", "d"],
             ["lagrange_multipliers"],
@@ -1371,8 +1374,39 @@ class ConfigureVariables:
             to_second=[i for i, c in enumerate(all_multipliers_names) if c in all_multipliers_names_in_phase],
         )
 
+
+        plot_function = Function(
+            "lagrange_multipliers_function",
+            [
+                time_span_sym,
+                nlp.states.scaled.cx,
+                new_control,
+                nlp.parameters.scaled.cx,
+                nlp.algebraic_states.scaled.cx,
+                nlp.numerical_timeseries.cx,
+            ],
+            [
+                # horzcat(
+                #     nlp.model.compute_the_lagrangian_multipliers()(
+                #         nlp.states.scaled["q_u"].cx,
+                #         nlp.states.scaled["qdot_u"].cx,
+                #         DM.zeros(nlp.model.nb_dependent_joints, 1),
+                #         DynamicsFunctions.get(nlp.controls["tau"], new_control[:, 0]),
+                #     ),
+                nlp.model.compute_the_lagrangian_multipliers()(
+                    nlp.states.scaled["q_u"].cx,
+                    nlp.states.scaled["qdot_u"].cx,
+                    DM.zeros(nlp.model.nb_dependent_joints, 1),
+                    DynamicsFunctions.get(nlp.controls["tau"], new_control[:, 1]),
+                # ),
+                )
+            ],
+            ["t_span", "x", "u", "p", "a", "d"],
+            ["lagrange_multipliers"],
+        )
+
         nlp.plot["lagrange_multipliers"] = CustomPlot(
-            lambda t0, phases_dt, node_idx, x, u, p, a, d: lagrange_multipliers_function(
+            lambda t0, phases_dt, node_idx, x, u, p, a, d: plot_function(
                 np.concatenate([t0, t0 + phases_dt[nlp.phase_idx]]), x, u, p, a, d
             ),
             plot_type=PlotType.INTEGRATED,
