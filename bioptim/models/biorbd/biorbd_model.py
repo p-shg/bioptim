@@ -1,4 +1,5 @@
 from typing import Callable
+from copy import deepcopy
 
 import biorbd_casadi as biorbd
 import numpy as np
@@ -41,6 +42,9 @@ class BiorbdModel:
         parameters: ParameterList = None,
         external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
         contact_types: list[ContactType] | tuple[ContactType] = (),
+        rigid_body_segment: str | None = None,
+        rigid_translation: np.ndarray | list | tuple | None = None,
+        rigid_rotation: np.ndarray | list | tuple | None = None,
         **kwargs,
     ):
         """
@@ -63,6 +67,11 @@ class BiorbdModel:
 
         self.model = biorbd.Model(bio_model) if isinstance(bio_model, str) else bio_model
 
+        self._rigid_body_segment = rigid_body_segment
+        self._rigid_translation = self._normalize_rigid_component(rigid_translation, "rigid_translation")
+        self._rigid_rotation = self._normalize_rigid_component(rigid_rotation, "rigid_rotation")
+        self._apply_rigid_base_transform()
+
         check_contacts(contact_types, self)
         self._contact_types = contact_types
 
@@ -81,6 +90,71 @@ class BiorbdModel:
     @property
     def contact_types(self):
         return self._contact_types
+
+    @property
+    def rigid_body_segment(self) -> str | None:
+        return self._rigid_body_segment
+
+    @property
+    def rigid_translation(self) -> np.ndarray | None:
+        return None if self._rigid_translation is None else self._rigid_translation.copy()
+
+    @property
+    def rigid_rotation(self) -> np.ndarray | None:
+        return None if self._rigid_rotation is None else self._rigid_rotation.copy()
+
+    @staticmethod
+    def _normalize_rigid_component(value, name: str) -> np.ndarray | None:
+        if value is None:
+            return None
+        arr = np.asarray(value, dtype=float).reshape(-1)
+        if arr.shape != (3,):
+            raise ValueError(f"{name} must be a 3-element vector")
+        return arr
+
+    def _apply_rigid_base_transform(self) -> None:
+        has_t = self._rigid_translation is not None
+        has_r = self._rigid_rotation is not None
+
+        # No RT requested
+        if not has_t and not has_r:
+            if self._rigid_body_segment is not None:
+                raise ValueError(
+                    "rigid_body_segment was provided, but rigid_translation and rigid_rotation are both None"
+                )
+            return
+
+        # RT requested: segment is mandatory
+        if self._rigid_body_segment is None:
+            raise ValueError(
+                "rigid_body_segment must be provided when rigid_translation or rigid_rotation is specified"
+            )
+
+        # Find segment index
+        seg_names = [s.name().to_string() for s in self.model.segments()]
+        if self._rigid_body_segment not in seg_names:
+            raise ValueError(
+                f"Segment '{self._rigid_body_segment}' was not found in the model. "
+                f"Available segments are {tuple(seg_names)}"
+            )
+        seg_index = seg_names.index(self._rigid_body_segment)
+
+        # Requested transform, defaults
+        translation = self._rigid_translation if has_t else np.zeros(3)
+        rotation = self._rigid_rotation if has_r else np.zeros(3)
+
+        # Build rotation from Euler angles (xyz)
+        rot = biorbd.Rotation.fromEulerAngles(rotation, "xyz")  # radians [web:56]
+
+        # Build RotoTrans from rotation + translation
+        rt = biorbd.RotoTrans.combineRotAndTrans(
+            rot,
+            biorbd.Vector3d(float(translation[0]), float(translation[1]), float(translation[2])),
+        )  # [web:21]
+
+        # Overwrite local JCS of the chosen segment
+        seg = self.model.segment(seg_index)
+        seg.setLocalJCS(self.model, rt)  # [web:20]
 
     def _symbolic_variables(self):
         """Declaration of MX variables of the right shape for the creation of CasADi Functions"""
@@ -155,10 +229,24 @@ class BiorbdModel:
         return self.model.path().absolutePath().to_string()
 
     def copy(self):
-        return BiorbdModel(self.path)
+        return BiorbdModel(
+            self.path,
+            external_force_set=deepcopy(self.external_force_set),
+            contact_types=self.contact_types,
+            rigid_body_segment=self.rigid_body_segment,
+            rigid_translation=self.rigid_translation,
+            rigid_rotation=self.rigid_rotation,
+        )
 
     def serialize(self) -> tuple[Callable, dict]:
-        return BiorbdModel, dict(bio_model=self.path, external_force_set=self.external_force_set)
+        return BiorbdModel, dict(
+            bio_model=self.path,
+            external_force_set=self.external_force_set,
+            contact_types=self.contact_types,
+            rigid_body_segment=self.rigid_body_segment,
+            rigid_translation=self.rigid_translation,
+            rigid_rotation=self.rigid_rotation,
+        )
 
     @property
     def friction_coefficients(self) -> MX | SX | np.ndarray:
