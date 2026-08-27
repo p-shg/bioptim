@@ -1207,7 +1207,7 @@ class ConfigureVariables:
         sym_qv = (
             nlp.controls.scaled.cx
             if nlp.control_type == ControlType.CONSTANT
-            else nlp.cx.sym("new_control", nlp.controls.scaled.cx.shape[0], 2)
+            else nlp.cx.sym("linear_continuous_compatible_controls", nlp.controls.scaled.cx.shape[0], 2)
         )
         qv_init_w_algebraic = (
             nlp.algebraic_states["q_v"].cx
@@ -1346,7 +1346,7 @@ class ConfigureVariables:
         sym_qv = (
             nlp.controls.scaled.cx
             if nlp.control_type == ControlType.CONSTANT
-            else nlp.cx.sym("new_control", nlp.controls.scaled.cx.shape[0], 2)
+            else nlp.cx.sym("linear_continuous_compatible_controls", nlp.controls.scaled.cx.shape[0], 2)
         )
         ctrl_cx = sym_qv[:, 1] if nlp.control_type == ControlType.LINEAR_CONTINUOUS else nlp.controls.scaled.cx
         qv_init_w_algebraic = (
